@@ -1,0 +1,5 @@
+# ninja log v6
+7	22	7595273732571910	clean	8c45b54705a541e8
+19	36	7595273792757240	clean	8c45b54705a541e8
+22	9186	7595273884517904	src/CMakeFiles/cudaLib.dir/cudaLib_generated_cudaLib.cu.obj	c83cae09217268d4
+22	9186	7595273884517904	C:/Users/conor/source/repos/texashodlr/CUDA_learnin/cuda-assignment-1-texashodlr/out/build/x64-Debug/src/CMakeFiles/cudaLib.dir/cudaLib_generated_cudaLib.cu.obj	c83cae09217268d4
