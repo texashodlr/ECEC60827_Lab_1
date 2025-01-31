@@ -3,6 +3,7 @@
 #include "cpuLib.h"
 #include "curand_kernel.h"
 
+
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort)
 {
 	if (code != cudaSuccess) 
@@ -27,6 +28,11 @@ int runGpuSaxpy(int vectorSize) {
 	std::cout << "Hello GPU Saxpy!\n";
 
 	//	Insert code here
+
+	std::cout << "The current vector size is: " << vectorSize << "\n";
+	std::cout << "Do you want to change it to: " << "\n";
+	scanf("%d", &vectorSize);
+
 	int size = vectorSize * sizeof(float);
 
 	float* x_h, * y_h, * z_h;
@@ -134,6 +140,7 @@ void generatePoints(uint64_t* pSums, uint64_t pSumSize, uint64_t sampleSize) {
 
 		}
 		pSums[index] += hitCount;
+		//atomicAdd((unsigned long long int*) & pSums[index], (unsigned long long int)hitCount);
 		//printf("Index: %d | pSums[Index]: %lu \n", index, pSums[index]);
 	}
 	//printf("Index: %d | hitCount: %lu \n", index, hitCount);
@@ -145,13 +152,24 @@ void reduceCounts(uint64_t* pSums, uint64_t* totals, uint64_t pSumSize, uint64_t
 	//	Inputs: pSums, pSumSize, reduceSize
 	//	Outputs: totals
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
-
+	//printf("Index: %d \n",index);
 	//First have to check if the thread index (which is basically going to be [0...31] is < reduceSize (also 32)
 	if (index < reduceSize) {
 		//Next the for-loop has to run through psums according to each thread
 		//Thread 0 would cover [0..31], thread 1 would cover [32..63] -- this is [index*reduceSize + idx] thread 2 idx=4 is [2*32+4]
-		for (int idx = 0; idx < reduceSize; ++idx) {
-			totals[index] += pSums[index * reduceSize + idx];
+		/*
+		
+		index is going to be 0 to 31 which means that pSumsize needs to be /reducesize so that idx iterates through 
+
+		512/32 = 16 indexs/thread 
+
+		*/
+		
+		for (int idx = 0; idx < (pSumSize/reduceSize); ++idx) {
+			int k = (index * (pSumSize / reduceSize) + idx);
+			//printf("Position: %d \n", k);
+			printf("Index: %d | idx: %d |  Position: %d \n", index, idx, k);
+			totals[index] += pSums[index * (pSumSize / reduceSize) + idx];
 		}
 	}
 
@@ -160,12 +178,23 @@ void reduceCounts(uint64_t* pSums, uint64_t* totals, uint64_t pSumSize, uint64_t
 
 int runGpuMCPi(uint64_t generateThreadCount, uint64_t sampleSize,
 	uint64_t reduceThreadCount, uint64_t reduceSize) {
-
+	
 	std::cout << "Here's your generate Thread Count: " << generateThreadCount << " \n"; // 1024
-	std::cout << "Here's your Sample Size: " << sampleSize << " \n"; // 100000
-	std::cout << "Here's your Reduce Thread Count: " << reduceThreadCount << " \n"; // 32
-	std::cout << "Here's your reduce Size: " << reduceSize << " \n"; // 32
+	std::cout << "Do you want to change it to: " << "\n";
+	scanf("%" SCNu64, &generateThreadCount);
 
+	std::cout << "Here's your Sample Size: " << sampleSize << " \n"; // 100000
+	std::cout << "Do you want to change it to: " << "\n";
+	scanf("%" SCNu64, &sampleSize);
+
+	std::cout << "Here's your Reduce Thread Count: " << reduceThreadCount << " \n"; // 32
+	std::cout << "Do you want to change it to: " << "\n";
+	scanf("%" SCNu64, &reduceThreadCount);
+
+	std::cout << "Here's your reduce Size: " << reduceSize << " \n"; // 32
+	std::cout << "Do you want to change it to: " << "\n";
+	scanf("%" SCNu64, &reduceSize);
+	
 	//  Check CUDA device presence
 	int numDev;
 	cudaGetDeviceCount(&numDev);
@@ -237,9 +266,12 @@ double estimatePi(uint64_t generateThreadCount, uint64_t sampleSize,
 
 
 	//cudaMemcpy(pSums_d, pSums_h2, generateThreadCount * sizeof(uint64_t), cudaMemcpyHostToDevice);
+	
 	cudaMemcpy(totals_d, totals_h, reduceThreadCount * sizeof(uint64_t), cudaMemcpyHostToDevice);
 
-	reduceCounts << <1, 32 >> > (pSums_d, totals_d, totalThreads, reduceSize);
+	std::cout << "Here's your pSumSize: " << totalThreads << " \n"; // 32
+	if (reduceSize > reduceThreadCount) { reduceSize = reduceThreadCount; }
+	reduceCounts << <1, reduceThreadCount >> > (pSums_d, totals_d, totalThreads, reduceSize);
 
 	cudaDeviceSynchronize();
 
@@ -248,13 +280,15 @@ double estimatePi(uint64_t generateThreadCount, uint64_t sampleSize,
 	printf(" totals_h = { ");
 	for (int i = 0; i < reduceSize; ++i) {
 		if (totals_h[i] != 0) {
-			std::cout << "pSums: " << totals_h[i] << "\n ";
 			totalHitCount += totals_h[i];
+			if (i < 5) {
+				std::cout << totals_h[i] << ", ";
+			}
 		}
 	}
 	printf(" ... }\n");
 	std::cout << "totalHitCount: " << totalHitCount << "\n ";
-
+	
 	approxPi = ((double)totalHitCount / sampleSize) / generateThreadCount;
 	approxPi = approxPi * 4.0f;
 

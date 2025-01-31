@@ -11,6 +11,8 @@
 	#include <chrono>
 	#include <cstring>
 	#include <cstdarg>
+	#include <cinttypes>
+	#include <limits>
 	
 	// Uncomment this to suppress console output
 	// #define DEBUG_PRINT_DISABLE
